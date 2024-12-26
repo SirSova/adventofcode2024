@@ -1,8 +1,49 @@
+use std::collections::HashMap;
+
 fn main() {
+    let (list1, list2) = parse_input();
+    
+    println!("distance: {}", calc_distance(list1.clone(), list2.clone())); // todo: copying? how to use pointers for borrowing
+    println!("similarity: {}", calc_similarity(list1, list2))
+}
+
+fn calc_distance(mut left: Vec<i32>, mut right: Vec<i32>) -> u32 {
+    left.sort();
+    right.sort();
+    
+    let mut distance: u32 = 0;
+    for i in 0..left.len() {
+        let elem1 = left.get(i).unwrap();
+        let elem2 = right.get(i).unwrap();
+        let diff = (elem1 - elem2).abs() as u32;
+        distance += diff;
+    }
+    
+    distance
+}
+
+fn calc_similarity(left: Vec<i32>, right: Vec<i32>) -> u32 {
+    let mut right_counts: HashMap<i32, u32> = HashMap::new();
+    for i in right {
+        right_counts.entry(i).and_modify(|counter| *counter += 1).or_insert(1);
+    }
+    
+    let mut similarity: u32 = 0;
+    for i in left {
+        similarity += i as u32 * match right_counts.get(&i) {
+            Some(s) => *s,
+            None => 0,
+        };
+    }
+    
+    similarity
+}
+
+fn parse_input() -> (Vec<i32>, Vec<i32>) {
     let mut list1: Vec<i32> = Vec::new();
     let mut list2: Vec<i32> = Vec::new();
     
-    for line in input.lines() {
+    for line in INPUT.lines() {
         let parts: Vec<&str> = line.split("   ").collect();
         if parts.len() < 2 {
             continue;
@@ -10,20 +51,11 @@ fn main() {
         list1.push(parts[0].parse::<i32>().unwrap());
         list2.push(parts[1].parse::<i32>().unwrap());
     }
-    list1.sort();
-    list2.sort();
     
-    let mut distance = 0;
-    for i in 0..list1.len() {
-        let elem1 = list1.get(i).unwrap();
-        let elem2 = list2.get(i).unwrap();
-        let diff = (elem1 - elem2).abs();
-        distance += diff;
-    }
-    println!("distance: {}", distance);
+    (list1, list2)
 }
 
-const input: &str = "
+const INPUT: &str = "
 99006   28305
 38540   91683
 18133   49738
