@@ -1,14 +1,18 @@
+use std::cmp::Ordering;
+
 fn main() {
     let reports = read_input_reports();
-    let safe = find_safe_reports(reports);
-    println!("*{}* safe reports", safe.len())
+    let safe = find_safe_reports(&reports, is_safe_report);
+    let safe_dampener = find_safe_reports(&reports, is_safe_report_dampener);
+    println!("*{}* safe reports", safe.len());
+    println!("*{}* safe reports", safe_dampener.len());
 }
 
-fn find_safe_reports(reports: Vec<Vec<u32>>) -> Vec<Vec<u32>> {
-    reports
-        .into_iter()
-        .filter(|report| is_safe_report(report))
-        .collect()
+fn find_safe_reports<P>(reports: &Vec<Vec<u32>>, mut filter: P) -> Vec<Vec<u32>>
+where
+    P: FnMut(&Vec<u32>) -> bool,
+{
+    reports.iter().filter(|r| filter(*r)).cloned().collect()
 }
 
 fn is_safe_report(report: &Vec<u32>) -> bool {
@@ -30,11 +34,106 @@ fn is_safe_report(report: &Vec<u32>) -> bool {
     true
 }
 
+// part 2, tolerate a single bad level
+fn is_safe_report_dampener(report: &Vec<u32>) -> bool {
+    let mut order: Ordering = Ordering::Equal;
+
+    let mut prev: &u32 = report.first().unwrap();
+    for (i, cur) in report.iter().enumerate() {
+        // not optimized: (try with all elements)
+        // if is_safe_report(&vec_without_elem(report, i)) {
+        //     return true
+        // }
+
+        if i == 0 {
+            if is_safe_report(&vec_without_elem(report, 0)) {
+                return true;
+            }
+            continue;
+        }
+
+        let cur_order = prev.cmp(cur);
+        if i == 1 {
+            if is_safe_report(&vec_without_elem(report, 1)) {
+                return true;
+            }
+            order = cur_order
+        } else if order != cur_order {
+            return is_safe_report(&vec_without_elem(report, i))
+                || is_safe_report(&vec_without_elem(report, i - 1));
+        }
+
+        let diff = cur.abs_diff(*prev);
+        if diff < MIN_ADJUST_LEVEL || diff > MAX_ADJUST_LEVEL {
+            return is_safe_report(&vec_without_elem(report, i))
+                || is_safe_report(&vec_without_elem(report, i - 1));
+        }
+        prev = cur;
+    }
+    true
+}
+
+#[test]
+fn test_dampener() {
+    // no error
+    assert_eq!(is_safe_report_dampener(&vec![7, 6, 4, 2, 1]), true);
+    assert_eq!(is_safe_report_dampener(&vec![1, 2, 5, 8, 9]), true);
+
+    // duplicate
+    assert_eq!(is_safe_report_dampener(&vec![7, 7, 4, 2, 1]), true);
+    assert_eq!(is_safe_report_dampener(&vec![7, 7, 8, 10, 12]), true);
+
+    assert_eq!(is_safe_report_dampener(&vec![7, 6, 4, 2, 2, 1]), true);
+    assert_eq!(is_safe_report_dampener(&vec![7, 9, 12, 13, 13, 16]), true);
+
+    assert_eq!(is_safe_report_dampener(&vec![7, 6, 6, 3, 1, 0]), true);
+    assert_eq!(is_safe_report_dampener(&vec![7, 8, 8, 9, 10, 12]), true);
+
+    assert_eq!(is_safe_report_dampener(&vec![7, 6, 5, 5, 2, 0]), true);
+    assert_eq!(is_safe_report_dampener(&vec![0, 2, 5, 5, 7, 8]), true);
+
+    assert_eq!(is_safe_report_dampener(&vec![4, 5, 6, 9, 9]), true);
+    assert_eq!(is_safe_report_dampener(&vec![12, 9, 8, 7, 7]), true);
+
+    // 1 error order
+    assert_eq!(is_safe_report_dampener(&vec![9, 4, 3, 2, 1]), true); // 0 desc
+    assert_eq!(is_safe_report_dampener(&vec![10, 1, 2, 5, 7]), true); // 0 asc
+
+    assert_eq!(is_safe_report_dampener(&vec![4, 9, 3, 2, 1]), true); // 1 desc
+    assert_eq!(is_safe_report_dampener(&vec![1, 9, 2, 4, 6]), true); // 1 asc
+
+    assert_eq!(is_safe_report_dampener(&vec![9, 7, 4, 8, 2]), true); // n-1 desc
+    assert_eq!(is_safe_report_dampener(&vec![1, 2, 3, 9, 4]), true); // n-1 asc
+
+    assert_eq!(is_safe_report_dampener(&vec![9, 8, 6, 3, 9]), true); // n desc
+    assert_eq!(is_safe_report_dampener(&vec![1, 2, 3, 4, 9]), true); // n asc
+
+    assert_eq!(is_safe_report_dampener(&vec![8, 5, 9, 3, 1]), true); // middle desc
+    assert_eq!(is_safe_report_dampener(&vec![4, 5, 9, 6, 9]), true); // middle asc
+
+    assert_eq!(is_safe_report_dampener(&vec![1, 2, 7, 8, 9]), false);
+    assert_eq!(is_safe_report_dampener(&vec![8, 2, 3, 4, 9]), false);
+    assert_eq!(is_safe_report_dampener(&vec![9, 7, 6, 2, 1]), false);
+    assert_eq!(is_safe_report_dampener(&vec![1, 2, 6, 9, 12]), false);
+    assert_eq!(is_safe_report_dampener(&vec![1, 2, 2, 4, 8]), false);
+    assert_eq!(is_safe_report_dampener(&vec![9, 7, 2, 2, 6]), false);
+    assert_eq!(is_safe_report_dampener(&vec![8, 4, 7, 6, 6]), false);
+    assert_eq!(is_safe_report_dampener(&vec![4, 4, 7, 6, 6]), false);
+}
+
+fn vec_without_elem(vec: &Vec<u32>, index: usize) -> Vec<u32> {
+    let mut new_vec = vec.clone();
+    if index < new_vec.len() {
+        new_vec.remove(index);
+    }
+    new_vec
+}
+
 fn read_input_reports() -> Vec<Vec<u32>> {
     let mut res = Vec::new();
     INPUT.lines().for_each(|line| {
+        // skip first/last empty lines
         if line.len() == 0 {
-            // skip first/last empty lines
             return;
         }
         res.push(line.split(" ").map(|i| i.parse::<u32>().unwrap()).collect());
@@ -45,7 +144,7 @@ fn read_input_reports() -> Vec<Vec<u32>> {
 const MIN_ADJUST_LEVEL: u32 = 1;
 const MAX_ADJUST_LEVEL: u32 = 3;
 
-const INPUT: &str = "
+const INPUT: &str = "\
 74 76 78 79 76
 38 40 43 44 44
 1 2 4 6 8 9 13
@@ -1045,5 +1144,4 @@ const INPUT: &str = "
 58 61 62 65 67 70 73
 40 37 34 33 32 31
 47 50 53 54 57 58 60 61
-59 58 55 53 52
-";
+59 58 55 53 52";
